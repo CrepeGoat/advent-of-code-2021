@@ -40,7 +40,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_find_sum_pair() {
+    fn test_count_diffs() {
         let sequence = vec![199, 200, 208, 210, 200, 207, 240, 269, 260, 263];
         assert_eq!(count_diffs(sequence.into_iter()), 5_usize);
     }
