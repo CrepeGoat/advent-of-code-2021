@@ -6,7 +6,6 @@ use std::str::FromStr;
 #[derive(Debug)]
 enum Direction {
     Forward,
-    Backward,
     Upward,
     Downward,
 }
@@ -16,9 +15,8 @@ impl FromStr for Direction {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "forward" => Ok(Self::Forward),
-            "backward" => Ok(Self::Backward),
-            "upward" => Ok(Self::Upward),
-            "downward" => Ok(Self::Downward),
+            "up" => Ok(Self::Upward),
+            "down" => Ok(Self::Downward),
             _ => Err("invalid string"),
         }
     }
@@ -76,7 +74,6 @@ where
     seq.fold((0, 0), |(down_up, fwd_bwd), (direction, dist)| {
         match direction {
             Direction::Forward => (down_up, fwd_bwd + dist),
-            Direction::Backward => (down_up, fwd_bwd - dist),
             Direction::Upward => (down_up - dist, fwd_bwd),
             Direction::Downward => (down_up + dist, fwd_bwd),
         }
@@ -98,7 +95,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_track_loc() {
+    fn test_track_loc_example() {
         let sequence = vec![
             (Direction::Forward, 5),
             (Direction::Downward, 5),
