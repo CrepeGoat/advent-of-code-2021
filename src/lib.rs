@@ -1,6 +1,6 @@
 #[macro_use]
 pub mod utils;
-
+pub mod vectorized;
 
 #[cfg(test)]
 mod tests {

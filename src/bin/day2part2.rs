@@ -37,7 +37,7 @@ impl<T1, T2> From<(T1, T2)> for Merged<T1, T2> {
 }
 
 impl<T1, T2> Into<(T1, T2)> for Merged<T1, T2> {
-    fn into(self: Self) -> (T1, T2) {
+    fn into(self) -> (T1, T2) {
         (self.0, self.1)
     }
 }
@@ -45,23 +45,25 @@ impl<T1, T2> Into<(T1, T2)> for Merged<T1, T2> {
 enum MergedErr<E1, E2> {
     Err1(E1),
     Err2(E2),
-} 
+}
 
 impl<T1: FromStr, T2: FromStr> FromStr for Merged<T1, T2> {
     type Err = MergedErr<<T1 as FromStr>::Err, <T2 as FromStr>::Err>;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut split_iter = s.split(" ");
+        let mut split_iter = s.split(' ');
 
         let t1 = split_iter
-            .next().unwrap()
+            .next()
+            .unwrap()
             .parse::<T1>()
-            .or_else(|e1| Err(Self::Err::Err1(e1)))?;
+            .map_err(Self::Err::Err1)?;
 
         let t2 = split_iter
-            .next().unwrap()
+            .next()
+            .unwrap()
             .parse::<T2>()
-            .or_else(|e2| Err(Self::Err::Err2(e2)))?;
+            .map_err(Self::Err::Err2)?;
 
         Ok(Self::new(t1, t2))
     }
@@ -71,13 +73,14 @@ fn track_loc<I>(seq: I) -> (i32, i32, i32)
 where
     I: Iterator<Item = (Direction, i32)>,
 {
-    seq.fold((0, 0, 0), |(down_up, fwd_bwd, aim), (direction, dist)| {
-        match direction {
+    seq.fold(
+        (0, 0, 0),
+        |(down_up, fwd_bwd, aim), (direction, dist)| match direction {
             Direction::Downward => (down_up, fwd_bwd, aim + dist),
             Direction::Upward => (down_up, fwd_bwd, aim - dist),
             Direction::Forward => (down_up + dist * aim, fwd_bwd + dist, aim),
-        }
-    })
+        },
+    )
 }
 
 fn main() {
