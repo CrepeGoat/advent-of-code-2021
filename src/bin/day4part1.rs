@@ -1,81 +1,17 @@
 use core::str::FromStr;
 use std::collections::{HashMap, HashSet};
+use std::convert::TryInto;
 use std::io::BufRead;
-use std::ops::Index;
 
-pub struct BingoBoard<T, const COL: usize, const SIZE: usize>([T; SIZE]);
-
-impl<T, const COL: usize, const SIZE: usize> BingoBoard<T, COL, SIZE> {
-    const ROW: usize = COL / SIZE;
-
-    pub fn row(&self, i: usize) -> &[T] {
-        &self.0[(i * COL)..((i + 1) * COL)]
-    }
-
-    pub fn row_mut(&mut self, i: usize) -> &mut [T] {
-        &mut self.0[(i * COL)..((i + 1) * COL)]
-    }
-
-    pub fn col_iter(&self, i: usize) -> impl Iterator<Item = &T> {
-        (self.0[i..]).iter().step_by(COL)
-    }
-
-    pub fn col_iter_mut(&mut self, i: usize) -> impl Iterator<Item = &mut T> {
-        (self.0[i..]).iter_mut().step_by(COL)
-    }
-
-    pub fn iter(&self) -> impl Iterator<Item = &T> {
-        self.0.iter()
-    }
-}
-
-impl<T, const COL: usize, const SIZE: usize> Index<(usize, usize)> for BingoBoard<T, COL, SIZE> {
-    type Output = T;
-    fn index(&self, index: (usize, usize)) -> &Self::Output {
-        assert!(index.0 < COL);
-        assert!(index.1 < SIZE / COL);
-
-        &self.0[index.0 + COL * index.1]
-    }
-}
-
-fn read_bingo_board<'a, I, T, const COL: usize, const SIZE: usize>(
-    mut lines: I,
-) -> Result<BingoBoard<T, COL, SIZE>, &'static str>
-where
-    T: Copy + FromStr,
-    I: Iterator<Item = String>,
-{
-    let mut result: BingoBoard<T, COL, SIZE> = unsafe { std::mem::uninitialized() };
-
-    for i in 0..BingoBoard::<T, COL, SIZE>::ROW {
-        let mut board_row = (&mut result).row_mut(i);
-
-        let line = (&mut lines).next().ok_or("not enough lines")?;
-        let mut items = line
-            .trim()
-            .split_whitespace()
-            .map(|x| T::from_str(x).map_err(|_| "failed to parse bingo board item"));
-
-        for j in 0..COL {
-            let mut board_cell = (&mut board_row)[j];
-            let item = items.next().ok_or("not enough lines")??;
-
-            unsafe {
-                std::ptr::write(&mut board_cell as *mut T, item);
-            }
-        }
-
-        if items.next().is_some() {
-            return Err("too many items in line");
-        }
-    }
-
-    if lines.next().is_some() {
-        return Err("too many lines");
-    }
-
-    Ok(result)
+fn try_into_matrix<T, const ROW: usize, const COL: usize>(
+    data: Vec<Vec<T>>,
+) -> Result<[[T; COL]; ROW], Box<dyn std::error::Error>> {
+    data.into_iter()
+        .map(|r| r.try_into())
+        .collect::<Result<Vec<_>, _>>()
+        .or(Err(Box::new("incorrect row length")))?
+        .try_into()
+        .or(Err(Box::new("incorrect col length")))
 }
 
 fn read_input<R: BufRead>(
@@ -92,7 +28,15 @@ fn read_input<R: BufRead>(
 
     let mut result2 = Vec::new();
     while lines.next().is_some() && lines.peek().is_some() {
-        let board_lines: Vec<_> = (&mut lines).take(5).collect::<Result<_, _>>()?;
+        let board_lines: Vec<_> = (&mut lines)
+            .take(5)
+            .map(|s| {
+                s?.trim()
+                    .split_whitespace()
+                    .map(usize::from_str)
+                    .collect::<Result<Vec<_>, _>>()
+            })
+            .collect::<Result<_, _>>()??;
         result2.push(read_bingo_board(board_lines.into_iter())?);
     }
 
