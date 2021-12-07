@@ -128,18 +128,19 @@ where
 fn read_input<R: BufRead>(
     reader: R,
 ) -> Result<(Vec<usize>, Vec<BingoBoard<usize, 5, 25>>), Box<dyn std::error::Error>> {
-    let mut lines = reader.lines();
+    let mut lines = reader.lines().peekable();
 
     let result1: Vec<usize> = lines
         .next()
-        .ok_or("no lines in input")?
+        .ok_or("no lines in input")??
         .split(',')
         .map(usize::from_str)
         .collect()?;
 
     let result2 = Vec::new();
-    while lines.next().is_some() {
-        result2.append(read_bingo_board(lines.take(5))?);
+    while lines.next().is_some() && lines.peek().is_some() {
+        let mut board_lines: Vec<_> = lines.take(5).collect()?;
+        result2.append(read_bingo_board(board_lines.into_iter())?);
     }
 
     Ok((result1, result2))
