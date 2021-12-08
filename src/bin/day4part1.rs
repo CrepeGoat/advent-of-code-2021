@@ -1,14 +1,14 @@
 use core::str::FromStr;
 use std::collections::{HashMap, HashSet};
-
+use std::error::Error;
 use std::io::BufRead;
 
-fn read_input<R: BufRead, T>(
-    reader: R,
-) -> Result<(Vec<T>, Vec<Vec<Vec<T>>>), Box<dyn std::error::Error>>
+type Matrix<T> = Vec<Vec<T>>;
+
+fn read_input<R: BufRead, T>(reader: R) -> Result<(Vec<T>, Vec<Matrix<T>>), Box<dyn Error>>
 where
-    T: FromStr,
-    <T as std::str::FromStr>::Err: std::error::Error,
+    T: std::str::FromStr,
+    <T as std::str::FromStr>::Err: 'static + Error,
 {
     let mut lines = reader.lines().peekable();
 
@@ -17,21 +17,23 @@ where
         .ok_or("no lines in input")??
         .split(',')
         .map(T::from_str)
-        .collect::<Result<Vec<T>, _>>()?;
+        .collect::<Result<_, _>>()?;
 
     let mut result2 = Vec::new();
     while lines.next().is_some() && lines.peek().is_some() {
-        let board_lines: Vec<Vec<T>> = (&mut lines)
-            .take(5)
-            .map(|s| {
-                s.or(Err("bad line read".to_owned()))?
-                    .trim()
-                    .split_whitespace()
-                    .map(T::from_str)
-                    .collect::<Result<Vec<_>, _>>()
-            })
-            .collect::<Result<Vec<Vec<T>>, _>>()?;
-        result2.push(board_lines);
+        result2.push(
+            (&mut lines)
+                .take(5)
+                .map(|s| {
+                    s.map_err(Box::new)?
+                        .trim()
+                        .split_whitespace()
+                        .map(T::from_str)
+                        .map(|r| r.map_err(|e| e.into()))
+                        .collect::<Result<_, _>>()
+                })
+                .collect::<Result<_, Box<dyn Error>>>()?,
+        );
     }
 
     Ok((result1, result2))
@@ -44,7 +46,7 @@ fn first_bingo_winner_score<ITEMS, BOARDS, T, U, const ROW: usize, const COL: us
 where
     T: Copy + std::hash::Hash + std::cmp::Eq + std::ops::Mul<usize, Output = U>,
     ITEMS: Iterator<Item = T>,
-    BOARDS: Iterator<Item = Vec<Vec<T>>>,
+    BOARDS: Iterator<Item = Matrix<T>>,
 {
     let mut board_states: Vec<_> = boards
         .map(|board| {
@@ -90,7 +92,8 @@ fn main() {
     let stdin = std::io::stdin();
 
     let (items, boards) = read_input::<_, usize>(stdin.lock()).unwrap();
+    println!("items: {:?}\nboards: {:?}", items, boards);
 
-    let score = first_bingo_winner_score(items.into_iter(), boards.into_iter());
+    let score = first_bingo_winner_score::<_, _, _, _, 5, 5>(items.into_iter(), boards.into_iter());
     println!("score: {:?}", score);
 }
