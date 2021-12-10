@@ -26,7 +26,7 @@ where
         .collect()
 }
 
-fn min_crab_fuel<I>(locs: I) -> Option<usize>
+fn crab_fuel<I>(locs: I) -> Vec<usize>
 where
     I: Iterator<Item = usize>,
 {
@@ -56,16 +56,16 @@ where
         .enumerate()
         .map(|(i, &count)| i * count)
         .sum();
-    let scores = {
+
+    {
         let mut sum = zero_index_score + whole_sum;
         prefix_sums.into_iter().map(move |item| {
             sum += 2 * item;
             sum -= whole_sum;
             sum
         })
-    };
-
-    scores.min()
+    }
+    .collect()
 }
 
 #[cfg(test)]
@@ -75,7 +75,10 @@ mod tests {
     #[test]
     fn test_min_crab_fuel_example1() {
         let sequence = vec![16, 1, 2, 0, 4, 2, 7, 1, 2, 14];
-        assert_eq!(min_crab_fuel(sequence.into_iter()), Some(37));
+        assert_eq!(
+            crab_fuel(sequence.into_iter()),
+            vec![49, 41, 37, 39, 41, 45, 49, 53, 59, 65, 71, 77, 83, 89, 95, 103, 111, 121]
+        );
     }
 }
 
@@ -84,6 +87,9 @@ fn main() {
     let stdin = std::io::stdin();
     let parsed_inputs = parse_input::<_, usize>(stdin.lock()).unwrap();
 
-    let crab_fuel: usize = min_crab_fuel(parsed_inputs.into_iter()).expect("no items in input");
+    let crab_fuel: usize = crab_fuel(parsed_inputs.into_iter())
+        .into_iter()
+        .min()
+        .expect("no items in input");
     println!("min crab fuel: {:?}", crab_fuel);
 }
