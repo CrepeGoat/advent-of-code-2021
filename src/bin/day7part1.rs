@@ -17,6 +17,7 @@ where
 {
     let mut buffer = String::new();
     reader.read_line(&mut buffer).map_err(ParseInputError::IO)?;
+    buffer.pop();
 
     buffer
         .split(',')
@@ -25,12 +26,64 @@ where
         .collect()
 }
 
-fn min_crab_fuel(locs: Vec<usize>) -> usize {
-    let loc_counts = locs.iter().fold(std::collections::HashMap::new(), |loc_cntr, &i| {
-        let prev_count = loc_cntr.remove(&i).unwrap_or_default();
-        loc_cntr.insert(&i, prev_count + 1);
+fn min_crab_fuel<I>(locs: I) -> Option<usize>
+where
+    I: Iterator<Item = usize>,
+{
+    let loc_counts = locs.fold(Vec::new(), |mut loc_cntr, i| {
+        if i >= loc_cntr.len() {
+            loc_cntr.resize_with(i + 1, Default::default);
+        }
+        loc_cntr[i] += 1;
         loc_cntr
     });
-    let zero_index_score = locs.iter().map(|&i| )
-    let prefix_sums = locs.iter
+    let n: usize = loc_counts.len();
+
+    let prefix_sums: Vec<usize> = {
+        let mut sum = 0;
+        std::iter::once(&0)
+            .chain(loc_counts.iter())
+            .map(move |item| {
+                sum += item;
+                sum
+            })
+    }
+    .collect();
+    let whole_sum = prefix_sums[n];
+
+    let zero_index_score: usize = loc_counts
+        .iter()
+        .enumerate()
+        .map(|(i, &count)| i * count)
+        .sum();
+    let scores = {
+        let mut sum = zero_index_score + whole_sum;
+        prefix_sums.into_iter().map(move |item| {
+            sum += 2 * item;
+            sum -= whole_sum;
+            sum
+        })
+    };
+
+    scores.min()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_min_crab_fuel_example1() {
+        let sequence = vec![16, 1, 2, 0, 4, 2, 7, 1, 2, 14];
+        assert_eq!(min_crab_fuel(sequence.into_iter()), Some(37));
+    }
+}
+
+fn main() {
+    println!("Enter input:");
+    let stdin = std::io::stdin();
+    let parsed_inputs = parse_input::<_, usize>(stdin.lock()).unwrap();
+
+    let crab_fuel: usize = min_crab_fuel(parsed_inputs.into_iter()).expect("no items in input");
+    println!("min crab fuel: {:?}", crab_fuel);
 }
