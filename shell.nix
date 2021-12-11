@@ -5,6 +5,7 @@
     nativeBuildInputs = [
         pkgs.python39
         pkgs.libiconv
+        #pkgs.rustup
         pkgs.cargo
         pkgs.clippy
         pkgs.rustfmt
