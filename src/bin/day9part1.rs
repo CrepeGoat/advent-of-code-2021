@@ -82,7 +82,7 @@ fn risk_levels<'a, const ROW: usize, const COL: usize>(
     low_points: &'a Matrix<bool, ROW, COL>,
 ) -> impl 'a + Iterator<Item = u32> {
     (0..ROW)
-        .zip(0..COL)
+        .flat_map(|i| (0..COL).map(move |j| (i, j)))
         .filter_map(move |(i, j)| low_points[i][j].then(|| 1 + cave_map[i][j]))
 }
 
@@ -136,5 +136,5 @@ fn main() {
     let cave_map = read_input::<_, 100, 100>(stdin.lock()).unwrap();
     let low_points = find_low_points(&cave_map);
     let result: u32 = risk_levels(&cave_map, &low_points).sum();
-    println!("counted 1478: {:?}", result);
+    println!("risk level sum: {:?}", result);
 }
