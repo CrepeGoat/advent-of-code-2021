@@ -59,7 +59,10 @@ fn find_low_points<const ROW: usize, const COL: usize>(
             match cave_row[j].cmp(&cave_row[j + 1]) {
                 Less => res_row[j + 1] = false,
                 Greater => res_row[j] = false,
-                _ => (),
+                _ => {
+                    res_row[j] = false;
+                    res_row[j + 1] = false;
+                }
             }
         }
     }
