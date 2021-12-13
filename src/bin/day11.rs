@@ -1,4 +1,6 @@
-use aoc_lib::grid::{adj_coords, read_input, Grid};
+use aoc_lib::grid::{adj8_coords, read_input, Grid};
+
+use itertools::Itertools;
 
 fn advance_epoch<const ROW: usize, const COL: usize>(
     mut mat: Grid<u32, ROW, COL>,
@@ -8,13 +10,12 @@ fn advance_epoch<const ROW: usize, const COL: usize>(
         mat[i][j] += 1;
     }
 
-    println!("{:?}", mat);
     let mut flash_stack: Vec<_> = (0..ROW)
         .flat_map(|i| (0..COL).map(move |j| (i, j)))
         .filter_map(|(i, j)| (mat[i][j] == FLASH_THRESHOLD).then(|| (i, j)))
         .collect();
     while let Some(coord) = flash_stack.pop() {
-        for (i, j) in adj_coords::<ROW, COL>(coord) {
+        for (i, j) in adj8_coords::<ROW, COL>(coord) {
             if mat[i][j] < FLASH_THRESHOLD {
                 mat[i][j] += 1;
                 if mat[i][j] == FLASH_THRESHOLD {
@@ -86,6 +87,17 @@ fn main() {
     println!("Enter input:");
     let stdin = std::io::stdin();
 
-    let dumbo_grid = read_input::<_, 10, 10>(stdin.lock()).unwrap();
-    println!("dumbo grid: {:?}", dumbo_grid);
+    let mut dumbo_grid = read_input::<_, 10, 10>(stdin.lock()).unwrap();
+    println!("epoch 0: {:?}", dumbo_grid);
+
+    let mut score: usize = 0;
+    for _ in 0..100 {
+        dumbo_grid = advance_epoch(dumbo_grid);
+        score += (0..10)
+            .cartesian_product(0..10)
+            .filter(|&(i, j)| dumbo_grid[i][j] == 0)
+            .count();
+    }
+    println!("epoch 100: {:?}", dumbo_grid);
+    println!("epoch 100 score: {:?}", score);
 }

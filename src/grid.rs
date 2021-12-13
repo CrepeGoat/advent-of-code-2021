@@ -1,3 +1,5 @@
+use itertools::Itertools;
+
 use crate::utils::ArrayWrapper;
 use std::io::BufRead;
 
@@ -43,11 +45,10 @@ pub fn adj8_coords<const ROW: usize, const COL: usize>(
         j_vals.push(center.1 + 1);
     }
 
-    let mut result = i_vals
+    i_vals
         .into_iter()
-        .flat_map(move |i| j_vals.into_iter().map(move |j| (i, j)));
-    result.by_ref().skip(1);
-    result
+        .cartesian_product(j_vals.into_iter())
+        .skip(1)
 }
 
 pub fn read_input<R: BufRead, const ROW: usize, const COL: usize>(
