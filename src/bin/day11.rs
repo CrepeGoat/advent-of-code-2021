@@ -1,9 +1,36 @@
-use aoc_lib::grid::{read_input, Grid};
+use aoc_lib::grid::{adj_coords, read_input, Grid};
 
-fn advance_epoch<T, const ROW: usize, const COL: usize>(
-    mut mat: Grid<T, ROW, COL>,
-) -> Grid<T, ROW, COL> {
-    unimplemented!()
+fn advance_epoch<const ROW: usize, const COL: usize>(
+    mut mat: Grid<u32, ROW, COL>,
+) -> Grid<u32, ROW, COL> {
+    const FLASH_THRESHOLD: u32 = 10;
+    for (i, j) in (0..ROW).flat_map(|i| (0..COL).map(move |j| (i, j))) {
+        mat[i][j] += 1;
+    }
+
+    println!("{:?}", mat);
+    let mut flash_stack: Vec<_> = (0..ROW)
+        .flat_map(|i| (0..COL).map(move |j| (i, j)))
+        .filter_map(|(i, j)| (mat[i][j] == FLASH_THRESHOLD).then(|| (i, j)))
+        .collect();
+    while let Some(coord) = flash_stack.pop() {
+        for (i, j) in adj_coords::<ROW, COL>(coord) {
+            if mat[i][j] < FLASH_THRESHOLD {
+                mat[i][j] += 1;
+                if mat[i][j] == FLASH_THRESHOLD {
+                    flash_stack.push((i, j));
+                }
+            }
+        }
+    }
+
+    for (i, j) in (0..ROW).flat_map(|i| (0..COL).map(move |j| (i, j))) {
+        if mat[i][j] == FLASH_THRESHOLD {
+            mat[i][j] = 0;
+        }
+    }
+
+    mat
 }
 
 #[cfg(test)]

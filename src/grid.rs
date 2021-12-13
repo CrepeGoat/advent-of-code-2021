@@ -3,7 +3,7 @@ use std::io::BufRead;
 
 pub type Grid<T, const ROW: usize, const COL: usize> = [[T; COL]; ROW];
 
-pub fn adj_coords<const ROW: usize, const COL: usize>(
+pub fn adj4_coords<const ROW: usize, const COL: usize>(
     center: (usize, usize),
 ) -> impl 'static + Iterator<Item = (usize, usize)> {
     let mut result = Vec::new();
@@ -22,6 +22,32 @@ pub fn adj_coords<const ROW: usize, const COL: usize>(
     }
 
     result.into_iter()
+}
+
+pub fn adj8_coords<const ROW: usize, const COL: usize>(
+    center: (usize, usize),
+) -> impl 'static + Iterator<Item = (usize, usize)> {
+    let mut i_vals = vec![center.0];
+    let mut j_vals = vec![center.1];
+
+    if let Some(offset_i) = center.0.checked_sub(1) {
+        i_vals.push(offset_i);
+    }
+    if let Some(offset_j) = center.1.checked_sub(1) {
+        j_vals.push(offset_j);
+    }
+    if center.0 < ROW - 1 {
+        i_vals.push(center.0 + 1);
+    }
+    if center.1 < COL - 1 {
+        j_vals.push(center.1 + 1);
+    }
+
+    let mut result = i_vals
+        .into_iter()
+        .flat_map(move |i| j_vals.into_iter().map(move |j| (i, j)));
+    result.by_ref().skip(1);
+    result
 }
 
 pub fn read_input<R: BufRead, const ROW: usize, const COL: usize>(

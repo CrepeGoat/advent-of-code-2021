@@ -1,4 +1,4 @@
-use aoc_lib::grid::{adj_coords, read_input, Grid};
+use aoc_lib::grid::{adj4_coords, read_input, Grid};
 
 fn find_low_points<const ROW: usize, const COL: usize>(
     cave_map: &Grid<u32, ROW, COL>,
@@ -59,7 +59,7 @@ fn iter_basins<const ROW: usize, const COL: usize>(
         while let Some(coord) = point_buffer.pop() {
             count += 1;
 
-            for (i, j) in adj_coords::<ROW, COL>(coord) {
+            for (i, j) in adj4_coords::<ROW, COL>(coord) {
                 if low_points[i][j]
                     || cave_map[i][j] >= 9
                     || cave_map[i][j] < cave_map[coord.0][coord.1]
