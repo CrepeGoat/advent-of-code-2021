@@ -84,7 +84,8 @@ pub struct PathStreamIter<'a> {
     graph: GraphRef<'a>,
     path: Vec<Node>,
     node_exits: Vec<usize>,
-    visited: std::collections::HashSet<Node>,
+    visited: std::collections::HashMap<Node, usize>,
+    visited_small_twice: bool,
 }
 
 impl<'a> PathStreamIter<'a> {
@@ -93,11 +94,31 @@ impl<'a> PathStreamIter<'a> {
             graph,
             path: Vec::new(),
             node_exits: Vec::new(),
-            visited: std::collections::HashSet::new(),
+            visited: std::collections::HashMap::new(),
+            visited_small_twice: false,
         };
         s.push_if_valid(NODE_START, 0);
 
         s
+    }
+
+    fn push_if_valid(&mut self, new_head: Node, last_exit: usize) -> bool {
+        if new_head.is_big
+            || !self.visited_small_twice
+            || !self.visited.get(&new_head).unwrap_or(&0) == 0
+        {
+            self.path.push(new_head);
+            self.node_exits.push(last_exit);
+            self.visited
+                .insert(new_head, 1 + self.visited.get(&new_head).unwrap_or(&0));
+            if let Some(&2) = self.visited.get(&new_head) {
+                self.visited_small_twice = true;
+            }
+
+            true
+        } else {
+            false
+        }
     }
 
     fn pop(&mut self) -> Option<(Node, usize)> {
@@ -106,7 +127,16 @@ impl<'a> PathStreamIter<'a> {
             .node_exits
             .pop()
             .expect("`path` and `node_exits` should be the same length");
-        self.visited.remove(&path_head);
+        match self.visited.get(&path_head) {
+            Some(&2) => {
+                self.visited.insert(path_head, 1);
+            }
+            Some(&1) => {
+                self.visited.remove(&path_head);
+                self.visited_small_twice = false;
+            }
+            _ => unreachable!(),
+        }
 
         Some((path_head, last_exit))
     }
@@ -116,18 +146,6 @@ impl<'a> PathStreamIter<'a> {
         let last_exit = &self.node_exits[self.path.len() - 1];
 
         Some((path_head, last_exit))
-    }
-
-    fn push_if_valid(&mut self, new_head: Node, last_exit: usize) -> bool {
-        if new_head.is_big || !self.visited.contains(&new_head) {
-            self.path.push(new_head);
-            self.node_exits.push(last_exit);
-            self.visited.insert(new_head);
-
-            true
-        } else {
-            false
-        }
     }
 
     pub fn next_ref(&mut self) -> Option<&Vec<Node>> {
