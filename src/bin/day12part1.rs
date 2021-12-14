@@ -91,11 +91,11 @@ impl<'a> PathStreamIter<'a> {
     pub fn new(graph: GraphRef<'a>) -> PathStreamIter<'a> {
         let mut s = Self {
             graph,
-            path: vec![NODE_START],
-            node_exits: vec![0],
+            path: Vec::new(),
+            node_exits: Vec::new(),
             visited: std::collections::HashSet::new(),
         };
-        s.visited.insert(NODE_START);
+        s.push_if_valid(NODE_START, 0);
 
         s
     }
@@ -111,27 +111,40 @@ impl<'a> PathStreamIter<'a> {
         Some((path_head, last_exit))
     }
 
-    fn push(&mut self, new_head: Node, last_exit: usize) {
-        self.path.push(new_head);
-        self.node_exits.push(last_exit);
-        self.visited.insert(new_head);
+    fn head(&self) -> Option<(&Node, &usize)> {
+        let path_head = (!self.path.is_empty()).then(|| &self.path[self.path.len() - 1])?;
+        let last_exit = &self.node_exits[self.path.len() - 1];
+
+        Some((path_head, last_exit))
+    }
+
+    fn push_if_valid(&mut self, new_head: Node, last_exit: usize) -> bool {
+        if new_head.is_big || !self.visited.contains(&new_head) {
+            self.path.push(new_head);
+            self.node_exits.push(last_exit);
+            self.visited.insert(new_head);
+
+            true
+        } else {
+            false
+        }
     }
 
     pub fn next_ref(&mut self) -> Option<&Vec<Node>> {
         loop {
-            let (path_head, last_exit) = self.pop()?;
+            let (&path_head, &last_exit) = self.head()?;
 
-            if path_head == NODE_END {
+            if path_head == NODE_END || last_exit == self.graph[path_head.id].len() {
+                self.pop();
                 continue;
             }
 
             for exit in last_exit..self.graph[path_head.id].len() {
-                let next_node = &self.graph[path_head.id][exit];
-                if next_node.is_big || !self.visited.contains(next_node) {
-                    self.push(path_head, exit + 1);
-                    self.push(*next_node, 0);
+                self.node_exits[self.path.len() - 1] = exit + 1;
+                let next_node = self.graph[path_head.id][exit];
 
-                    if self.path[self.path.len() - 1] == NODE_END {
+                if self.push_if_valid(next_node, 0) {
+                    if next_node == NODE_END {
                         return Some(&self.path);
                     }
 
