@@ -1,19 +1,38 @@
+use core::str::FromStr;
+
+#[derive(Debug, Clone)]
+pub struct Edge(String, String);
+
+impl FromStr for Edge {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut iter = s.split('-');
+        let n1 = iter.next().ok_or("no items in string")?;
+        let n2 = iter.next().ok_or("no second item in string")?;
+        iter.next()
+            .is_none()
+            .then(move || Edge(n1.to_string(), n2.to_string()))
+            .ok_or("more than 2 items in string")
+    }
+}
+
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
-struct Node {
+pub struct Node {
     id: usize,
     is_big: bool,
 }
 
-const NODE_START: Node = Node {
+pub const NODE_START: Node = Node {
     id: 0,
     is_big: false,
 };
-const NODE_END: Node = Node {
+pub const NODE_END: Node = Node {
     id: 1,
     is_big: true,
 };
 
-type Graph = Vec<Vec<Node>>;
+type GraphRef<'a> = &'a [Vec<Node>];
 
 impl Node {
     fn make_builder<'a>() -> impl (FnMut(&'a str) -> Self) {
@@ -27,42 +46,48 @@ impl Node {
             } else {
                 let node = Self {
                     id: node_id_lookup.len(),
-                    is_big: s.to_lowercase() == s,
+                    is_big: s.to_uppercase() == s,
                 };
-                node_id_lookup.insert(&s, node);
+                node_id_lookup.insert(s, node);
 
                 node
             }
         }
     }
 
-    fn build_graph(inputs: &Vec<(String, String)>) -> Vec<Vec<Self>> {
-        let builder = Self::make_builder();
+    pub fn build_graph(inputs: &[Edge]) -> Vec<Vec<Self>> {
+        let mut builder = Self::make_builder();
 
-        inputs.iter().fold(Vec::new(), |result, (s1, s2)| {
-            let n1 = builder(s1);
-            let n2 = builder(s2);
+        inputs
+            .iter()
+            .fold(vec![Vec::new(), Vec::new()], |mut result, Edge(s1, s2)| {
+                let n1 = builder(s1);
+                if n1.id >= result.len() {
+                    result.push(Vec::new());
+                }
 
-            if n1.id >= result.len() {
-                result.push(Vec::new());
-            }
-            result[n1.id].push(n2);
+                let n2 = builder(s2);
+                if n2.id >= result.len() {
+                    result.push(Vec::new());
+                }
 
-            result
-        })
+                result[n1.id].push(n2);
+
+                result
+            })
     }
 }
 
 #[derive(Debug, Clone)]
-struct PathStreamIter<'a> {
-    graph: &'a Graph,
+pub struct PathStreamIter<'a> {
+    graph: GraphRef<'a>,
     path: Vec<Node>,
     node_exits: Vec<usize>,
     visited: std::collections::HashSet<Node>,
 }
 
 impl<'a> PathStreamIter<'a> {
-    pub fn new(graph: &'a Graph) -> PathStreamIter<'a> {
+    pub fn new(graph: GraphRef<'a>) -> PathStreamIter<'a> {
         let mut s = Self {
             graph,
             path: vec![NODE_START],
@@ -74,7 +99,7 @@ impl<'a> PathStreamIter<'a> {
         s
     }
 
-    pub fn next<'b>(&'b mut self) -> Option<&'b Vec<Node>> {
+    pub fn next_ref(&mut self) -> Option<&Vec<Node>> {
         loop {
             let path_head = self.path.pop()?;
             let last_exit = self
@@ -88,18 +113,19 @@ impl<'a> PathStreamIter<'a> {
 
             for (i, exit) in (last_exit + 1..self.graph[path_head.id].len()).enumerate() {
                 let next_node = &self.graph[path_head.id][exit];
-                if next_node.is_big || !self.visited.contains(&next_node) {
+                if next_node.is_big || !self.visited.contains(next_node) {
                     self.path.push(path_head);
                     self.node_exits.push(last_exit + i + 1);
 
                     self.path.push(*next_node);
                     self.node_exits.push(0);
+
+                    if self.path[self.path.len() - 1] == NODE_END {
+                        return Some(&self.path);
+                    }
+
                     break;
                 }
-            }
-
-            if self.path[self.path.len() - 1] == NODE_END {
-                return Some(&self.path);
             }
         }
     }
@@ -109,4 +135,89 @@ impl<'a> PathStreamIter<'a> {
         std::iter::repeat(()).filter_map(move |_| self.next())
     }
     */
+}
+
+pub fn count_paths(graph: GraphRef) -> usize {
+    let mut path_iterlike = PathStreamIter::new(graph);
+
+    let mut result = 0;
+    while let Some(path_ref) = path_iterlike.next_ref() {
+        println!("path ref: {:?}", path_ref);
+        result += 1;
+    }
+
+    result
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_count_paths_eg1() {
+        let cave_edges = [
+            Edge("start".to_string(), "A".to_string()),
+            Edge("start".to_string(), "b".to_string()),
+            Edge("A".to_string(), "c".to_string()),
+            Edge("A".to_string(), "b".to_string()),
+            Edge("b".to_string(), "d".to_string()),
+            Edge("A".to_string(), "end".to_string()),
+            Edge("b".to_string(), "end".to_string()),
+        ];
+        let graph = Node::build_graph(&cave_edges);
+        println!("graph: {:?}", graph);
+
+        let result = count_paths(&graph);
+        assert_eq!(result, 10);
+    }
+
+    #[test]
+    fn test_count_paths_eg2() {
+        let cave_edges = [
+            Edge("dc".to_string(), "end".to_string()),
+            Edge("HN".to_string(), "start".to_string()),
+            Edge("start".to_string(), "kj".to_string()),
+            Edge("dc".to_string(), "start".to_string()),
+            Edge("dc".to_string(), "HN".to_string()),
+            Edge("LN".to_string(), "dc".to_string()),
+            Edge("HN".to_string(), "end".to_string()),
+            Edge("kj".to_string(), "sa".to_string()),
+            Edge("kj".to_string(), "HN".to_string()),
+            Edge("kj".to_string(), "dc".to_string()),
+        ];
+        let graph = Node::build_graph(&cave_edges);
+        println!("graph: {:?}", graph);
+
+        let result = count_paths(&graph);
+        assert_eq!(result, 19);
+    }
+
+    #[test]
+    fn test_count_paths_eg3() {
+        let cave_edges = [
+            Edge("fs".to_string(), "end".to_string()),
+            Edge("he".to_string(), "DX".to_string()),
+            Edge("fs".to_string(), "he".to_string()),
+            Edge("start".to_string(), "DX".to_string()),
+            Edge("pj".to_string(), "DX".to_string()),
+            Edge("end".to_string(), "zg".to_string()),
+            Edge("zg".to_string(), "sl".to_string()),
+            Edge("zg".to_string(), "pj".to_string()),
+            Edge("pj".to_string(), "he".to_string()),
+            Edge("RW".to_string(), "he".to_string()),
+            Edge("fs".to_string(), "DX".to_string()),
+            Edge("pj".to_string(), "RW".to_string()),
+            Edge("zg".to_string(), "RW".to_string()),
+            Edge("start".to_string(), "pj".to_string()),
+            Edge("he".to_string(), "WI".to_string()),
+            Edge("zg".to_string(), "he".to_string()),
+            Edge("pj".to_string(), "fs".to_string()),
+            Edge("start".to_string(), "RW".to_string()),
+        ];
+        let graph = Node::build_graph(&cave_edges);
+        println!("graph: {:?}", graph);
+
+        let result = count_paths(&graph);
+        assert_eq!(result, 226);
+    }
 }
