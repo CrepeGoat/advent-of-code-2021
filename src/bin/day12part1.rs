@@ -125,10 +125,10 @@ impl<'a> PathStreamIter<'a> {
                 continue;
             }
 
-            for (i, exit) in (last_exit..self.graph[path_head.id].len()).enumerate() {
+            for exit in last_exit..self.graph[path_head.id].len() {
                 let next_node = &self.graph[path_head.id][exit];
                 if next_node.is_big || !self.visited.contains(next_node) {
-                    self.push(path_head, last_exit + i + 1);
+                    self.push(path_head, exit + 1);
                     self.push(*next_node, 0);
 
                     if self.path[self.path.len() - 1] == NODE_END {
@@ -152,7 +152,7 @@ pub fn count_paths(graph: GraphRef) -> usize {
     let mut path_iterlike = PathStreamIter::new(graph);
 
     let mut result = 0;
-    while let Some(path_ref) = path_iterlike.next_ref() {
+    while let Some(_path_ref) = path_iterlike.next_ref() {
         result += 1;
     }
 
