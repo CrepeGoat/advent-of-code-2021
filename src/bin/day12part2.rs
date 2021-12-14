@@ -18,19 +18,26 @@ impl FromStr for Edge {
     }
 }
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+enum CaveType {
+    Small,
+    Big,
+    Terminal,
+}
+
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
 pub struct Node {
     id: usize,
-    is_big: bool,
+    cave_type: CaveType,
 }
 
 pub const NODE_START: Node = Node {
     id: 0,
-    is_big: false,
+    cave_type: CaveType::Terminal,
 };
 pub const NODE_END: Node = Node {
     id: 1,
-    is_big: false,
+    cave_type: CaveType::Terminal,
 };
 
 type GraphRef<'a> = &'a [Vec<Node>];
@@ -47,7 +54,11 @@ impl Node {
             } else {
                 let node = Self {
                     id: node_id_lookup.len(),
-                    is_big: s.to_uppercase() == s,
+                    cave_type: if s.to_uppercase() == s {
+                        CaveType::Big
+                    } else {
+                        CaveType::Small
+                    },
                 };
                 println!("node mapping: {:?} == {:?}", s, node.id);
                 node_id_lookup.insert(s, node);
@@ -103,16 +114,26 @@ impl<'a> PathStreamIter<'a> {
     }
 
     fn push_if_valid(&mut self, new_head: Node, last_exit: usize) -> bool {
-        if new_head.is_big
-            || !self.visited_small_twice
-            || !self.visited.get(&new_head).unwrap_or(&0) == 0
-        {
+        println!("maybe push {:?} {:?}", new_head, last_exit);
+        if match new_head.cave_type {
+            CaveType::Big => true,
+            CaveType::Small => {
+                !self.visited_small_twice || *self.visited.get(&new_head).unwrap_or(&0) == 0
+            }
+            CaveType::Terminal => *self.visited.get(&new_head).unwrap_or(&0) == 0,
+        } {
+            println!("\tyes push");
             self.path.push(new_head);
             self.node_exits.push(last_exit);
             self.visited
                 .insert(new_head, 1 + self.visited.get(&new_head).unwrap_or(&0));
+            println!(
+                "\tvisited {:?} times",
+                *self.visited.get(&new_head).unwrap()
+            );
             if let Some(&2) = self.visited.get(&new_head) {
                 self.visited_small_twice = true;
+                println!("\tvisited small cave twice");
             }
 
             true
@@ -127,15 +148,12 @@ impl<'a> PathStreamIter<'a> {
             .node_exits
             .pop()
             .expect("`path` and `node_exits` should be the same length");
-        match self.visited.get(&path_head) {
-            Some(&2) => {
-                self.visited.insert(path_head, 1);
-            }
-            Some(&1) => {
-                self.visited.remove(&path_head);
-                self.visited_small_twice = false;
-            }
-            _ => unreachable!(),
+        println!("pop {:?} {:?}", path_head, last_exit);
+        let count = self.visited.remove(&path_head).unwrap();
+        if count > 1 {
+            self.visited.insert(path_head, count - 1);
+        } else if count < 1 {
+            unreachable!();
         }
 
         Some((path_head, last_exit))
@@ -149,8 +167,10 @@ impl<'a> PathStreamIter<'a> {
     }
 
     pub fn next_ref(&mut self) -> Option<&Vec<Node>> {
+        println!("start!");
         loop {
             let (&path_head, &last_exit) = self.head()?;
+            println!("path head: {:?} last exit: {:?}", path_head, last_exit);
 
             if path_head == NODE_END || last_exit == self.graph[path_head.id].len() {
                 self.pop();
@@ -212,19 +232,19 @@ mod tests {
             NODE_END,
             Node {
                 id: 2,
-                is_big: true,
+                cave_type: CaveType::Big,
             },
             Node {
                 id: 3,
-                is_big: false,
+                cave_type: CaveType::Small,
             },
             Node {
                 id: 4,
-                is_big: false,
+                cave_type: CaveType::Small,
             },
             Node {
                 id: 5,
-                is_big: false,
+                cave_type: CaveType::Small,
             },
         ];
         assert_eq!(
