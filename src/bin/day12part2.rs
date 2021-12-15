@@ -40,8 +40,6 @@ pub const NODE_END: Node = Node {
     cave_type: CaveType::Terminal,
 };
 
-type GraphRef<'a> = &'a [Vec<Node>];
-
 impl Node {
     fn make_builder() -> impl (FnMut(String) -> Self) {
         let mut node_id_lookup = std::collections::HashMap::<String, Node>::new();
@@ -67,23 +65,40 @@ impl Node {
             }
         }
     }
+}
 
-    pub fn build_graph<I: Iterator<Item = Edge>>(iter: I) -> Vec<Vec<Self>> {
-        let mut builder = Self::make_builder();
+#[derive(Debug)]
+pub struct Graph {
+    edges: Vec<Vec<usize>>,
+    cave_types: Vec<CaveType>,
+}
 
-        iter.fold(vec![Vec::new(), Vec::new()], |mut result, Edge(s1, s2)| {
+impl Graph {
+    pub fn vertices(&self) -> usize {
+        self.edges.len()
+    }
+    pub fn new<I: Iterator<Item = Edge>>(iter: I) -> Self {
+        let mut builder = Node::make_builder();
+        let result = Self {
+            edges: vec![Vec::new(), Vec::new()],
+            cave_types: vec![CaveType::Terminal, CaveType::Terminal],
+        };
+
+        iter.fold(result, |mut result, Edge(s1, s2)| {
             let n1 = builder(s1);
-            if n1.id >= result.len() {
-                result.push(Vec::new());
+            if n1.id >= result.edges.len() {
+                result.edges.push(Vec::new());
+                result.cave_types.push(n1.cave_type)
             }
 
             let n2 = builder(s2);
-            if n2.id >= result.len() {
-                result.push(Vec::new());
+            if n2.id >= result.edges.len() {
+                result.edges.push(Vec::new());
+                result.cave_types.push(n2.cave_type)
             }
 
-            result[n1.id].push(n2);
-            result[n2.id].push(n1);
+            result.edges[n1.id].push(n2.id);
+            result.edges[n2.id].push(n1.id);
 
             result
         })
@@ -92,15 +107,15 @@ impl Node {
 
 #[derive(Debug, Clone)]
 pub struct PathStreamIter<'a> {
-    graph: GraphRef<'a>,
-    path: Vec<Node>,
+    graph: &'a Graph,
+    path: Vec<usize>,
     node_exits: Vec<usize>,
-    visited: std::collections::HashMap<Node, usize>,
+    visited: std::collections::HashMap<usize, usize>,
     visited_small_twice: bool,
 }
 
 impl<'a> PathStreamIter<'a> {
-    pub fn new(graph: GraphRef<'a>) -> PathStreamIter<'a> {
+    pub fn new(graph: &'a Graph) -> PathStreamIter<'a> {
         let mut s = Self {
             graph,
             path: Vec::new(),
@@ -108,13 +123,13 @@ impl<'a> PathStreamIter<'a> {
             visited: std::collections::HashMap::new(),
             visited_small_twice: false,
         };
-        s.push_if_valid(NODE_START, 0);
+        s.push_if_valid(NODE_START.id, 0);
 
         s
     }
 
-    fn push_if_valid(&mut self, new_head: Node, last_exit: usize) -> bool {
-        if match new_head.cave_type {
+    fn push_if_valid(&mut self, new_head: usize, last_exit: usize) -> bool {
+        if match self.graph.cave_types[new_head] {
             CaveType::Big => true,
             CaveType::Small => {
                 *self.visited.get(&new_head).unwrap_or(&0) < {
@@ -133,7 +148,7 @@ impl<'a> PathStreamIter<'a> {
             let new_count = 1 + self.visited.get(&new_head).unwrap_or(&0);
             self.visited.insert(new_head, new_count);
 
-            match (new_head.cave_type, new_count) {
+            match (self.graph.cave_types[new_head], new_count) {
                 (_, 0) => unreachable!(),
                 (CaveType::Big, _) => {}
                 (CaveType::Small, 2) => {
@@ -162,31 +177,37 @@ impl<'a> PathStreamIter<'a> {
             unreachable!();
         }
 
-        Some((path_head, last_exit))
+        Some((
+            Node {
+                id: path_head,
+                cave_type: self.graph.cave_types[path_head],
+            },
+            last_exit,
+        ))
     }
 
-    fn head(&self) -> Option<(&Node, &usize)> {
+    fn head(&self) -> Option<(usize, &usize)> {
         let path_head = (!self.path.is_empty()).then(|| &self.path[self.path.len() - 1])?;
         let last_exit = &self.node_exits[self.path.len() - 1];
 
-        Some((path_head, last_exit))
+        Some((*path_head, last_exit))
     }
 
-    pub fn next_ref(&mut self) -> Option<&Vec<Node>> {
+    pub fn next_ref(&mut self) -> Option<&Vec<usize>> {
         loop {
-            let (&path_head, &last_exit) = self.head()?;
+            let (path_head, &last_exit) = self.head()?;
 
-            if path_head == NODE_END || last_exit == self.graph[path_head.id].len() {
+            if path_head == NODE_END.id || last_exit == self.graph.edges[path_head].len() {
                 self.pop();
                 continue;
             }
 
-            for exit in last_exit..self.graph[path_head.id].len() {
+            for exit in last_exit..self.graph.edges[path_head].len() {
                 self.node_exits[self.path.len() - 1] = exit + 1;
-                let next_node = self.graph[path_head.id][exit];
+                let next_node = self.graph.edges[path_head][exit];
 
                 if self.push_if_valid(next_node, 0) {
-                    if next_node == NODE_END {
+                    if next_node == NODE_END.id {
                         return Some(&self.path);
                     }
 
@@ -203,7 +224,7 @@ impl<'a> PathStreamIter<'a> {
     */
 }
 
-pub fn count_paths(graph: GraphRef) -> usize {
+pub fn count_paths(graph: &Graph) -> usize {
     let mut path_iterlike = PathStreamIter::new(graph);
 
     let mut result = 0;
@@ -230,283 +251,129 @@ mod tests {
             Edge("A".to_string(), "end".to_string()),
             Edge("b".to_string(), "end".to_string()),
         ];
-        let graph = Node::build_graph(cave_edges.into_iter());
+        let graph = Graph::new(cave_edges.into_iter());
 
-        let nodes = vec![
-            NODE_START,
-            NODE_END,
-            Node {
-                id: 2,
-                cave_type: CaveType::Big,
-            },
-            Node {
-                id: 3,
-                cave_type: CaveType::Small,
-            },
-            Node {
-                id: 4,
-                cave_type: CaveType::Small,
-            },
-            Node {
-                id: 5,
-                cave_type: CaveType::Small,
-            },
-        ];
         assert_eq!(
-            graph,
+            graph.edges,
             vec![
-                vec![nodes[2], nodes[3]],
-                vec![nodes[2], nodes[3]],
-                vec![nodes[0], nodes[4], nodes[3], nodes[1]],
-                vec![nodes[0], nodes[2], nodes[5], nodes[1]],
-                vec![nodes[2]],
-                vec![nodes[3]],
+                vec![2, 3],
+                vec![2, 3],
+                vec![0, 4, 3, 1],
+                vec![0, 2, 5, 1],
+                vec![2],
+                vec![3],
             ]
         );
     }
 
     #[test]
     fn test_streamiter_paths_eg1() {
-        let nodes = vec![
-            NODE_START,
-            NODE_END,
-            Node {
-                id: 2,
-                cave_type: CaveType::Big,
-            },
-            Node {
-                id: 3,
-                cave_type: CaveType::Small,
-            },
-            Node {
-                id: 4,
-                cave_type: CaveType::Small,
-            },
-            Node {
-                id: 5,
-                cave_type: CaveType::Small,
-            },
-        ];
-        let graph = vec![
-            vec![nodes[2], nodes[3]],
-            vec![nodes[2], nodes[3]],
-            vec![nodes[0], nodes[3], nodes[4], nodes[1]],
-            vec![nodes[0], nodes[2], nodes[5], nodes[1]],
-            vec![nodes[2]],
-            vec![nodes[3]],
-        ];
+        let graph = Graph {
+            edges: vec![
+                vec![2, 3],
+                vec![2, 3],
+                vec![0, 3, 4, 1],
+                vec![0, 2, 5, 1],
+                vec![2],
+                vec![3],
+            ],
+            cave_types: vec![
+                NODE_START.cave_type,
+                NODE_END.cave_type,
+                CaveType::Big,
+                CaveType::Small,
+                CaveType::Small,
+                CaveType::Small,
+            ],
+        };
         println!("graph: {:?}\n", graph);
 
         let mut path_streamiter = PathStreamIter::new(&graph);
 
         assert_eq!(
             path_streamiter.next_ref(),
-            Some(&vec![
-                nodes[0], nodes[2], nodes[3], nodes[2], nodes[3], nodes[2], nodes[4], nodes[2],
-                nodes[1]
-            ])
+            Some(&vec![0, 2, 3, 2, 3, 2, 4, 2, 1])
+        );
+        assert_eq!(path_streamiter.next_ref(), Some(&vec![0, 2, 3, 2, 3, 2, 1]));
+        assert_eq!(path_streamiter.next_ref(), Some(&vec![0, 2, 3, 2, 3, 1]));
+        assert_eq!(
+            path_streamiter.next_ref(),
+            Some(&vec![0, 2, 3, 2, 4, 2, 3, 2, 1])
         );
         assert_eq!(
             path_streamiter.next_ref(),
-            Some(&vec![
-                nodes[0], nodes[2], nodes[3], nodes[2], nodes[3], nodes[2], nodes[1]
-            ])
+            Some(&vec![0, 2, 3, 2, 4, 2, 3, 1])
         );
         assert_eq!(
             path_streamiter.next_ref(),
-            Some(&vec![
-                nodes[0], nodes[2], nodes[3], nodes[2], nodes[3], nodes[1]
-            ])
+            Some(&vec![0, 2, 3, 2, 4, 2, 4, 2, 1])
+        );
+        assert_eq!(path_streamiter.next_ref(), Some(&vec![0, 2, 3, 2, 4, 2, 1]));
+        assert_eq!(path_streamiter.next_ref(), Some(&vec![0, 2, 3, 2, 1]));
+        assert_eq!(
+            path_streamiter.next_ref(),
+            Some(&vec![0, 2, 3, 5, 3, 2, 4, 2, 1])
+        );
+        assert_eq!(path_streamiter.next_ref(), Some(&vec![0, 2, 3, 5, 3, 2, 1]));
+        assert_eq!(path_streamiter.next_ref(), Some(&vec![0, 2, 3, 5, 3, 1]));
+        assert_eq!(path_streamiter.next_ref(), Some(&vec![0, 2, 3, 1]));
+        assert_eq!(
+            path_streamiter.next_ref(),
+            Some(&vec![0, 2, 4, 2, 3, 2, 3, 2, 1])
         );
         assert_eq!(
             path_streamiter.next_ref(),
-            Some(&vec![
-                nodes[0], nodes[2], nodes[3], nodes[2], nodes[4], nodes[2], nodes[3], nodes[2],
-                nodes[1]
-            ])
+            Some(&vec![0, 2, 4, 2, 3, 2, 3, 1])
         );
         assert_eq!(
             path_streamiter.next_ref(),
-            Some(&vec![
-                nodes[0], nodes[2], nodes[3], nodes[2], nodes[4], nodes[2], nodes[3], nodes[1]
-            ])
+            Some(&vec![0, 2, 4, 2, 3, 2, 4, 2, 1])
+        );
+        assert_eq!(path_streamiter.next_ref(), Some(&vec![0, 2, 4, 2, 3, 2, 1]));
+        assert_eq!(
+            path_streamiter.next_ref(),
+            Some(&vec![0, 2, 4, 2, 3, 5, 3, 2, 1])
         );
         assert_eq!(
             path_streamiter.next_ref(),
-            Some(&vec![
-                nodes[0], nodes[2], nodes[3], nodes[2], nodes[4], nodes[2], nodes[4], nodes[2],
-                nodes[1]
-            ])
+            Some(&vec![0, 2, 4, 2, 3, 5, 3, 1])
+        );
+        assert_eq!(path_streamiter.next_ref(), Some(&vec![0, 2, 4, 2, 3, 1]));
+        assert_eq!(
+            path_streamiter.next_ref(),
+            Some(&vec![0, 2, 4, 2, 4, 2, 3, 2, 1])
         );
         assert_eq!(
             path_streamiter.next_ref(),
-            Some(&vec![
-                nodes[0], nodes[2], nodes[3], nodes[2], nodes[4], nodes[2], nodes[1]
-            ])
+            Some(&vec![0, 2, 4, 2, 4, 2, 3, 1])
         );
+        assert_eq!(path_streamiter.next_ref(), Some(&vec![0, 2, 4, 2, 4, 2, 1]));
+        assert_eq!(path_streamiter.next_ref(), Some(&vec![0, 2, 4, 2, 1]));
+        assert_eq!(path_streamiter.next_ref(), Some(&vec![0, 2, 1]));
         assert_eq!(
             path_streamiter.next_ref(),
-            Some(&vec![nodes[0], nodes[2], nodes[3], nodes[2], nodes[1]])
+            Some(&vec![0, 3, 2, 3, 2, 4, 2, 1])
         );
+        assert_eq!(path_streamiter.next_ref(), Some(&vec![0, 3, 2, 3, 2, 1]));
+        assert_eq!(path_streamiter.next_ref(), Some(&vec![0, 3, 2, 3, 1]));
         assert_eq!(
             path_streamiter.next_ref(),
-            Some(&vec![
-                nodes[0], nodes[2], nodes[3], nodes[5], nodes[3], nodes[2], nodes[4], nodes[2],
-                nodes[1]
-            ])
+            Some(&vec![0, 3, 2, 4, 2, 3, 2, 1])
         );
+        assert_eq!(path_streamiter.next_ref(), Some(&vec![0, 3, 2, 4, 2, 3, 1]));
         assert_eq!(
             path_streamiter.next_ref(),
-            Some(&vec![
-                nodes[0], nodes[2], nodes[3], nodes[5], nodes[3], nodes[2], nodes[1]
-            ])
+            Some(&vec![0, 3, 2, 4, 2, 4, 2, 1])
         );
+        assert_eq!(path_streamiter.next_ref(), Some(&vec![0, 3, 2, 4, 2, 1]));
+        assert_eq!(path_streamiter.next_ref(), Some(&vec![0, 3, 2, 1]));
         assert_eq!(
             path_streamiter.next_ref(),
-            Some(&vec![
-                nodes[0], nodes[2], nodes[3], nodes[5], nodes[3], nodes[1]
-            ])
+            Some(&vec![0, 3, 5, 3, 2, 4, 2, 1])
         );
-        assert_eq!(
-            path_streamiter.next_ref(),
-            Some(&vec![nodes[0], nodes[2], nodes[3], nodes[1]])
-        );
-        assert_eq!(
-            path_streamiter.next_ref(),
-            Some(&vec![
-                nodes[0], nodes[2], nodes[4], nodes[2], nodes[3], nodes[2], nodes[3], nodes[2],
-                nodes[1]
-            ])
-        );
-        assert_eq!(
-            path_streamiter.next_ref(),
-            Some(&vec![
-                nodes[0], nodes[2], nodes[4], nodes[2], nodes[3], nodes[2], nodes[3], nodes[1]
-            ])
-        );
-        assert_eq!(
-            path_streamiter.next_ref(),
-            Some(&vec![
-                nodes[0], nodes[2], nodes[4], nodes[2], nodes[3], nodes[2], nodes[4], nodes[2],
-                nodes[1]
-            ])
-        );
-        assert_eq!(
-            path_streamiter.next_ref(),
-            Some(&vec![
-                nodes[0], nodes[2], nodes[4], nodes[2], nodes[3], nodes[2], nodes[1]
-            ])
-        );
-        assert_eq!(
-            path_streamiter.next_ref(),
-            Some(&vec![
-                nodes[0], nodes[2], nodes[4], nodes[2], nodes[3], nodes[5], nodes[3], nodes[2],
-                nodes[1]
-            ])
-        );
-        assert_eq!(
-            path_streamiter.next_ref(),
-            Some(&vec![
-                nodes[0], nodes[2], nodes[4], nodes[2], nodes[3], nodes[5], nodes[3], nodes[1]
-            ])
-        );
-        assert_eq!(
-            path_streamiter.next_ref(),
-            Some(&vec![
-                nodes[0], nodes[2], nodes[4], nodes[2], nodes[3], nodes[1]
-            ])
-        );
-        assert_eq!(
-            path_streamiter.next_ref(),
-            Some(&vec![
-                nodes[0], nodes[2], nodes[4], nodes[2], nodes[4], nodes[2], nodes[3], nodes[2],
-                nodes[1]
-            ])
-        );
-        assert_eq!(
-            path_streamiter.next_ref(),
-            Some(&vec![
-                nodes[0], nodes[2], nodes[4], nodes[2], nodes[4], nodes[2], nodes[3], nodes[1]
-            ])
-        );
-        assert_eq!(
-            path_streamiter.next_ref(),
-            Some(&vec![
-                nodes[0], nodes[2], nodes[4], nodes[2], nodes[4], nodes[2], nodes[1]
-            ])
-        );
-        assert_eq!(
-            path_streamiter.next_ref(),
-            Some(&vec![nodes[0], nodes[2], nodes[4], nodes[2], nodes[1]])
-        );
-        assert_eq!(
-            path_streamiter.next_ref(),
-            Some(&vec![nodes[0], nodes[2], nodes[1]])
-        );
-        assert_eq!(
-            path_streamiter.next_ref(),
-            Some(&vec![
-                nodes[0], nodes[3], nodes[2], nodes[3], nodes[2], nodes[4], nodes[2], nodes[1]
-            ])
-        );
-        assert_eq!(
-            path_streamiter.next_ref(),
-            Some(&vec![
-                nodes[0], nodes[3], nodes[2], nodes[3], nodes[2], nodes[1]
-            ])
-        );
-        assert_eq!(
-            path_streamiter.next_ref(),
-            Some(&vec![nodes[0], nodes[3], nodes[2], nodes[3], nodes[1]])
-        );
-        assert_eq!(
-            path_streamiter.next_ref(),
-            Some(&vec![
-                nodes[0], nodes[3], nodes[2], nodes[4], nodes[2], nodes[3], nodes[2], nodes[1]
-            ])
-        );
-        assert_eq!(
-            path_streamiter.next_ref(),
-            Some(&vec![
-                nodes[0], nodes[3], nodes[2], nodes[4], nodes[2], nodes[3], nodes[1]
-            ])
-        );
-        assert_eq!(
-            path_streamiter.next_ref(),
-            Some(&vec![
-                nodes[0], nodes[3], nodes[2], nodes[4], nodes[2], nodes[4], nodes[2], nodes[1]
-            ])
-        );
-        assert_eq!(
-            path_streamiter.next_ref(),
-            Some(&vec![
-                nodes[0], nodes[3], nodes[2], nodes[4], nodes[2], nodes[1]
-            ])
-        );
-        assert_eq!(
-            path_streamiter.next_ref(),
-            Some(&vec![nodes[0], nodes[3], nodes[2], nodes[1]])
-        );
-        assert_eq!(
-            path_streamiter.next_ref(),
-            Some(&vec![
-                nodes[0], nodes[3], nodes[5], nodes[3], nodes[2], nodes[4], nodes[2], nodes[1]
-            ])
-        );
-        assert_eq!(
-            path_streamiter.next_ref(),
-            Some(&vec![
-                nodes[0], nodes[3], nodes[5], nodes[3], nodes[2], nodes[1]
-            ])
-        );
-        assert_eq!(
-            path_streamiter.next_ref(),
-            Some(&vec![nodes[0], nodes[3], nodes[5], nodes[3], nodes[1]])
-        );
-        assert_eq!(
-            path_streamiter.next_ref(),
-            Some(&vec![nodes[0], nodes[3], nodes[1]])
-        );
+        assert_eq!(path_streamiter.next_ref(), Some(&vec![0, 3, 5, 3, 2, 1]));
+        assert_eq!(path_streamiter.next_ref(), Some(&vec![0, 3, 5, 3, 1]));
+        assert_eq!(path_streamiter.next_ref(), Some(&vec![0, 3, 1]));
         assert_eq!(path_streamiter.next_ref(), None);
     }
 
@@ -524,7 +391,7 @@ mod tests {
             Edge("kj".to_string(), "HN".to_string()),
             Edge("kj".to_string(), "dc".to_string()),
         ];
-        let graph = Node::build_graph(cave_edges.into_iter());
+        let graph = Graph::new(cave_edges.into_iter());
         println!("graph: {:?}", graph);
 
         let result = count_paths(&graph);
@@ -553,7 +420,7 @@ mod tests {
             Edge("pj".to_string(), "fs".to_string()),
             Edge("start".to_string(), "RW".to_string()),
         ];
-        let graph = Node::build_graph(cave_edges.into_iter());
+        let graph = Graph::new(cave_edges.into_iter());
         println!("graph: {:?}", graph);
 
         let result = count_paths(&graph);
@@ -566,7 +433,7 @@ fn main() {
     let stdin = std::io::stdin();
     let parsed_inputs = parsing_input::<_, Edge>(stdin.lock());
 
-    let graph = Node::build_graph(parsed_inputs);
+    let graph = Graph::new(parsed_inputs);
     let result = count_paths(&graph);
     println!("paths count: {:?}", result);
 }
