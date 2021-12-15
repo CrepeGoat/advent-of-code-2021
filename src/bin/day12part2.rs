@@ -114,7 +114,6 @@ impl<'a> PathStreamIter<'a> {
     }
 
     fn push_if_valid(&mut self, new_head: Node, last_exit: usize) -> bool {
-        println!("maybe push {:?} {:?}", new_head, last_exit);
         if match new_head.cave_type {
             CaveType::Big => true,
             CaveType::Small => {
@@ -128,25 +127,20 @@ impl<'a> PathStreamIter<'a> {
             }
             CaveType::Terminal => *self.visited.get(&new_head).unwrap_or(&0) == 0,
         } {
-            println!("\tyes push");
             self.path.push(new_head);
             self.node_exits.push(last_exit);
 
             let new_count = 1 + self.visited.get(&new_head).unwrap_or(&0);
             self.visited.insert(new_head, new_count);
-            println!(
-                "\tvisited {:?} times",
-                *self.visited.get(&new_head).unwrap()
-            );
 
             match (new_head.cave_type, new_count) {
+                (_, 0) => unreachable!(),
+                (CaveType::Big, _) => {}
                 (CaveType::Small, 2) => {
                     self.visited_small_twice = true;
-                    println!("\tvisited small cave twice");
                 }
-                (CaveType::Small, 1) => {}
-                (CaveType::Small, _) => unreachable!(),
-                _ => {}
+                (CaveType::Small | CaveType::Terminal, 1) => {}
+                (CaveType::Small | CaveType::Terminal, _) => unreachable!(),
             }
 
             true
@@ -161,11 +155,10 @@ impl<'a> PathStreamIter<'a> {
             .node_exits
             .pop()
             .expect("`path` and `node_exits` should be the same length");
-        println!("pop {:?} {:?}", path_head, last_exit);
-        let count = self.visited.remove(&path_head).unwrap();
-        if count > 1 {
-            self.visited.insert(path_head, count - 1);
-        } else if count < 1 {
+        let old_count = self.visited.remove(&path_head).unwrap();
+        if old_count >= 1 {
+            self.visited.insert(path_head, old_count - 1);
+        } else {
             unreachable!();
         }
 
@@ -180,13 +173,10 @@ impl<'a> PathStreamIter<'a> {
     }
 
     pub fn next_ref(&mut self) -> Option<&Vec<Node>> {
-        println!("start!");
         loop {
             let (&path_head, &last_exit) = self.head()?;
-            println!("path head: {:?} last exit: {:?}", path_head, last_exit);
 
             if path_head == NODE_END || last_exit == self.graph[path_head.id].len() {
-                println!("pop {:?}", path_head);
                 self.pop();
                 continue;
             }
@@ -218,6 +208,7 @@ pub fn count_paths(graph: GraphRef) -> usize {
 
     let mut result = 0;
     while let Some(_path_ref) = path_iterlike.next_ref() {
+        println!("path ref: {:?}", _path_ref);
         result += 1;
     }
 
