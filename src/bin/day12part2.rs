@@ -118,22 +118,35 @@ impl<'a> PathStreamIter<'a> {
         if match new_head.cave_type {
             CaveType::Big => true,
             CaveType::Small => {
-                !self.visited_small_twice || *self.visited.get(&new_head).unwrap_or(&0) == 0
+                *self.visited.get(&new_head).unwrap_or(&0) < {
+                    if self.visited_small_twice {
+                        1
+                    } else {
+                        2
+                    }
+                }
             }
             CaveType::Terminal => *self.visited.get(&new_head).unwrap_or(&0) == 0,
         } {
             println!("\tyes push");
             self.path.push(new_head);
             self.node_exits.push(last_exit);
-            self.visited
-                .insert(new_head, 1 + self.visited.get(&new_head).unwrap_or(&0));
+
+            let new_count = 1 + self.visited.get(&new_head).unwrap_or(&0);
+            self.visited.insert(new_head, new_count);
             println!(
                 "\tvisited {:?} times",
                 *self.visited.get(&new_head).unwrap()
             );
-            if let Some(&2) = self.visited.get(&new_head) {
-                self.visited_small_twice = true;
-                println!("\tvisited small cave twice");
+
+            match (new_head.cave_type, new_count) {
+                (CaveType::Small, 2) => {
+                    self.visited_small_twice = true;
+                    println!("\tvisited small cave twice");
+                }
+                (CaveType::Small, 1) => {}
+                (CaveType::Small, _) => unreachable!(),
+                _ => {}
             }
 
             true
@@ -173,6 +186,7 @@ impl<'a> PathStreamIter<'a> {
             println!("path head: {:?} last exit: {:?}", path_head, last_exit);
 
             if path_head == NODE_END || last_exit == self.graph[path_head.id].len() {
+                println!("pop {:?}", path_head);
                 self.pop();
                 continue;
             }
