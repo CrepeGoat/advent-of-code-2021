@@ -95,6 +95,36 @@ fn unique_folded(points: &[Point<i32>], fold_lines: &[CartesianLine<i32>]) -> Ha
         .collect()
 }
 
+fn print_dots<'a, C>(dots: C)
+where
+    C: 'a + IntoIterator<Item = &'a Point<i32>>,
+{
+    let mut paper = Vec::<Vec<bool>>::new();
+
+    for dot in dots.into_iter() {
+        let dot_x = dot.x as usize;
+        let dot_y = dot.y as usize;
+
+        if dot_y >= paper.len() {
+            paper.resize(dot_y + 1, Default::default());
+        }
+        while dot_x >= paper[dot_y].len() {
+            paper[dot_y].resize(dot_x + 1, Default::default())
+        }
+
+        paper[dot_y][dot_x] = true;
+    }
+
+    for line in paper {
+        println!(
+            "{}",
+            line.iter()
+                .map(|b| if *b { '#' } else { ' ' })
+                .collect::<String>()
+        );
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -160,6 +190,9 @@ fn main() {
     let stdin = std::io::stdin();
     let (points, folds) = read_input(stdin.lock()).unwrap();
 
-    let dots = unique_folded(&points, &folds[..1]).len();
-    println!("unique folded points: {:?}", dots);
+    let dots = unique_folded(&points, &folds);
+    println!("unique folded points: {:?}", dots.len());
+
+    println!("dots:");
+    print_dots(&dots);
 }
