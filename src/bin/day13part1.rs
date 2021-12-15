@@ -160,6 +160,6 @@ fn main() {
     let stdin = std::io::stdin();
     let (points, folds) = read_input(stdin.lock()).unwrap();
 
-    let xings = unique_folded(&points, &folds).len();
-    println!("unique folded points: {:?}", xings);
+    let dots = unique_folded(&points, &folds[..1]).len();
+    println!("unique folded points: {:?}", dots);
 }
