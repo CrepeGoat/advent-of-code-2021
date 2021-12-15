@@ -176,6 +176,9 @@ impl<'a> PathStreamIter<'a> {
         } else {
             unreachable!();
         }
+        if self.graph.cave_types[path_head] == CaveType::Small && old_count == 2 {
+            self.visited_small_twice = false;
+        }
 
         Some((
             Node {
@@ -229,7 +232,6 @@ pub fn count_paths(graph: &Graph) -> usize {
 
     let mut result = 0;
     while let Some(_path_ref) = path_iterlike.next_ref() {
-        println!("path ref: {:?}", _path_ref);
         result += 1;
     }
 
