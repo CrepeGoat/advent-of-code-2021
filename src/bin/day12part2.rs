@@ -266,21 +266,248 @@ mod tests {
     }
 
     #[test]
-    fn test_count_paths_eg1() {
-        let cave_edges = vec![
-            Edge("start".to_string(), "A".to_string()),
-            Edge("start".to_string(), "b".to_string()),
-            Edge("A".to_string(), "c".to_string()),
-            Edge("A".to_string(), "b".to_string()),
-            Edge("b".to_string(), "d".to_string()),
-            Edge("A".to_string(), "end".to_string()),
-            Edge("b".to_string(), "end".to_string()),
+    fn test_streamiter_paths_eg1() {
+        let nodes = vec![
+            NODE_START,
+            NODE_END,
+            Node {
+                id: 2,
+                cave_type: CaveType::Big,
+            },
+            Node {
+                id: 3,
+                cave_type: CaveType::Small,
+            },
+            Node {
+                id: 4,
+                cave_type: CaveType::Small,
+            },
+            Node {
+                id: 5,
+                cave_type: CaveType::Small,
+            },
         ];
-        let graph = Node::build_graph(cave_edges.into_iter());
-        println!("graph: {:?}", graph);
+        let graph = vec![
+            vec![nodes[2], nodes[3]],
+            vec![nodes[2], nodes[3]],
+            vec![nodes[0], nodes[3], nodes[4], nodes[1]],
+            vec![nodes[0], nodes[2], nodes[5], nodes[1]],
+            vec![nodes[2]],
+            vec![nodes[3]],
+        ];
+        println!("graph: {:?}\n", graph);
 
-        let result = count_paths(&graph);
-        assert_eq!(result, 36);
+        let mut path_streamiter = PathStreamIter::new(&graph);
+
+        assert_eq!(
+            path_streamiter.next_ref(),
+            Some(&vec![
+                nodes[0], nodes[2], nodes[3], nodes[2], nodes[3], nodes[2], nodes[4], nodes[2],
+                nodes[1]
+            ])
+        );
+        assert_eq!(
+            path_streamiter.next_ref(),
+            Some(&vec![
+                nodes[0], nodes[2], nodes[3], nodes[2], nodes[3], nodes[2], nodes[1]
+            ])
+        );
+        assert_eq!(
+            path_streamiter.next_ref(),
+            Some(&vec![
+                nodes[0], nodes[2], nodes[3], nodes[2], nodes[3], nodes[1]
+            ])
+        );
+        assert_eq!(
+            path_streamiter.next_ref(),
+            Some(&vec![
+                nodes[0], nodes[2], nodes[3], nodes[2], nodes[4], nodes[2], nodes[3], nodes[2],
+                nodes[1]
+            ])
+        );
+        assert_eq!(
+            path_streamiter.next_ref(),
+            Some(&vec![
+                nodes[0], nodes[2], nodes[3], nodes[2], nodes[4], nodes[2], nodes[3], nodes[1]
+            ])
+        );
+        assert_eq!(
+            path_streamiter.next_ref(),
+            Some(&vec![
+                nodes[0], nodes[2], nodes[3], nodes[2], nodes[4], nodes[2], nodes[4], nodes[2],
+                nodes[1]
+            ])
+        );
+        assert_eq!(
+            path_streamiter.next_ref(),
+            Some(&vec![
+                nodes[0], nodes[2], nodes[3], nodes[2], nodes[4], nodes[2], nodes[1]
+            ])
+        );
+        assert_eq!(
+            path_streamiter.next_ref(),
+            Some(&vec![nodes[0], nodes[2], nodes[3], nodes[2], nodes[1]])
+        );
+        assert_eq!(
+            path_streamiter.next_ref(),
+            Some(&vec![
+                nodes[0], nodes[2], nodes[3], nodes[5], nodes[3], nodes[2], nodes[4], nodes[2],
+                nodes[1]
+            ])
+        );
+        assert_eq!(
+            path_streamiter.next_ref(),
+            Some(&vec![
+                nodes[0], nodes[2], nodes[3], nodes[5], nodes[3], nodes[2], nodes[1]
+            ])
+        );
+        assert_eq!(
+            path_streamiter.next_ref(),
+            Some(&vec![
+                nodes[0], nodes[2], nodes[3], nodes[5], nodes[3], nodes[1]
+            ])
+        );
+        assert_eq!(
+            path_streamiter.next_ref(),
+            Some(&vec![nodes[0], nodes[2], nodes[3], nodes[1]])
+        );
+        assert_eq!(
+            path_streamiter.next_ref(),
+            Some(&vec![
+                nodes[0], nodes[2], nodes[4], nodes[2], nodes[3], nodes[2], nodes[3], nodes[2],
+                nodes[1]
+            ])
+        );
+        assert_eq!(
+            path_streamiter.next_ref(),
+            Some(&vec![
+                nodes[0], nodes[2], nodes[4], nodes[2], nodes[3], nodes[2], nodes[3], nodes[1]
+            ])
+        );
+        assert_eq!(
+            path_streamiter.next_ref(),
+            Some(&vec![
+                nodes[0], nodes[2], nodes[4], nodes[2], nodes[3], nodes[2], nodes[4], nodes[2],
+                nodes[1]
+            ])
+        );
+        assert_eq!(
+            path_streamiter.next_ref(),
+            Some(&vec![
+                nodes[0], nodes[2], nodes[4], nodes[2], nodes[3], nodes[2], nodes[1]
+            ])
+        );
+        assert_eq!(
+            path_streamiter.next_ref(),
+            Some(&vec![
+                nodes[0], nodes[2], nodes[4], nodes[2], nodes[3], nodes[5], nodes[3], nodes[2],
+                nodes[1]
+            ])
+        );
+        assert_eq!(
+            path_streamiter.next_ref(),
+            Some(&vec![
+                nodes[0], nodes[2], nodes[4], nodes[2], nodes[3], nodes[5], nodes[3], nodes[1]
+            ])
+        );
+        assert_eq!(
+            path_streamiter.next_ref(),
+            Some(&vec![
+                nodes[0], nodes[2], nodes[4], nodes[2], nodes[3], nodes[1]
+            ])
+        );
+        assert_eq!(
+            path_streamiter.next_ref(),
+            Some(&vec![
+                nodes[0], nodes[2], nodes[4], nodes[2], nodes[4], nodes[2], nodes[3], nodes[2],
+                nodes[1]
+            ])
+        );
+        assert_eq!(
+            path_streamiter.next_ref(),
+            Some(&vec![
+                nodes[0], nodes[2], nodes[4], nodes[2], nodes[4], nodes[2], nodes[3], nodes[1]
+            ])
+        );
+        assert_eq!(
+            path_streamiter.next_ref(),
+            Some(&vec![
+                nodes[0], nodes[2], nodes[4], nodes[2], nodes[4], nodes[2], nodes[1]
+            ])
+        );
+        assert_eq!(
+            path_streamiter.next_ref(),
+            Some(&vec![nodes[0], nodes[2], nodes[4], nodes[2], nodes[1]])
+        );
+        assert_eq!(
+            path_streamiter.next_ref(),
+            Some(&vec![nodes[0], nodes[2], nodes[1]])
+        );
+        assert_eq!(
+            path_streamiter.next_ref(),
+            Some(&vec![
+                nodes[0], nodes[3], nodes[2], nodes[3], nodes[2], nodes[4], nodes[2], nodes[1]
+            ])
+        );
+        assert_eq!(
+            path_streamiter.next_ref(),
+            Some(&vec![
+                nodes[0], nodes[3], nodes[2], nodes[3], nodes[2], nodes[1]
+            ])
+        );
+        assert_eq!(
+            path_streamiter.next_ref(),
+            Some(&vec![nodes[0], nodes[3], nodes[2], nodes[3], nodes[1]])
+        );
+        assert_eq!(
+            path_streamiter.next_ref(),
+            Some(&vec![
+                nodes[0], nodes[3], nodes[2], nodes[4], nodes[2], nodes[3], nodes[2], nodes[1]
+            ])
+        );
+        assert_eq!(
+            path_streamiter.next_ref(),
+            Some(&vec![
+                nodes[0], nodes[3], nodes[2], nodes[4], nodes[2], nodes[3], nodes[1]
+            ])
+        );
+        assert_eq!(
+            path_streamiter.next_ref(),
+            Some(&vec![
+                nodes[0], nodes[3], nodes[2], nodes[4], nodes[2], nodes[4], nodes[2], nodes[1]
+            ])
+        );
+        assert_eq!(
+            path_streamiter.next_ref(),
+            Some(&vec![
+                nodes[0], nodes[3], nodes[2], nodes[4], nodes[2], nodes[1]
+            ])
+        );
+        assert_eq!(
+            path_streamiter.next_ref(),
+            Some(&vec![nodes[0], nodes[3], nodes[2], nodes[1]])
+        );
+        assert_eq!(
+            path_streamiter.next_ref(),
+            Some(&vec![
+                nodes[0], nodes[3], nodes[5], nodes[3], nodes[2], nodes[4], nodes[2], nodes[1]
+            ])
+        );
+        assert_eq!(
+            path_streamiter.next_ref(),
+            Some(&vec![
+                nodes[0], nodes[3], nodes[5], nodes[3], nodes[2], nodes[1]
+            ])
+        );
+        assert_eq!(
+            path_streamiter.next_ref(),
+            Some(&vec![nodes[0], nodes[3], nodes[5], nodes[3], nodes[1]])
+        );
+        assert_eq!(
+            path_streamiter.next_ref(),
+            Some(&vec![nodes[0], nodes[3], nodes[1]])
+        );
+        assert_eq!(path_streamiter.next_ref(), None);
     }
 
     #[test]
