@@ -1,4 +1,5 @@
 use aoc_lib::grid::{adj4_coords, read_input, Grid};
+use aoc_lib::utils::n_min;
 
 fn find_low_points<const ROW: usize, const COL: usize>(
     cave_map: &Grid<u32, ROW, COL>,
@@ -73,20 +74,6 @@ fn iter_basins<const ROW: usize, const COL: usize>(
 
         count
     })
-}
-
-fn n_min<T: core::cmp::Ord, I: Iterator<Item = T>>(n: usize, mut iter: I) -> Vec<T> {
-    let mut buffer = std::collections::BinaryHeap::new();
-
-    for item in iter.by_ref().take(n) {
-        buffer.push(item);
-    }
-    for item in iter {
-        buffer.push(item);
-        buffer.pop();
-    }
-
-    buffer.into_sorted_vec()
 }
 
 #[cfg(test)]
