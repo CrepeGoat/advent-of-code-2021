@@ -1,5 +1,5 @@
-use aoc_lib::utils::{n_min, ArrayWrapper};
-use core::hash::Hash;
+use aoc_lib::utils::ArrayWrapper;
+
 use core::str::FromStr;
 use itertools::Itertools;
 use std::collections::HashMap;
@@ -45,79 +45,101 @@ fn read_input<R: BufRead>(mut reader: R) -> Result<(String, Vec<Insertion>), &'s
     Ok((initial_seq.to_string(), insertions))
 }
 
-type PolymerInsertionMap = HashMap<(char, char), String>;
+type PairCounts = HashMap<(char, char), usize>;
+type PolymerPairCountMap = HashMap<(char, char), PairCounts>;
 
-fn new_map<I: Iterator<Item = Insertion>>(insertions: I) -> PolymerInsertionMap {
+fn new_pair_counts(s: &str) -> PairCounts {
+    s.chars()
+        .tuple_windows()
+        .fold(PairCounts::new(), |mut pair_counts, pair| {
+            let count_ref = pair_counts.entry(pair).or_insert(0);
+            *count_ref += 1;
+
+            pair_counts
+        })
+}
+
+fn new_map<I: Iterator<Item = Insertion>>(insertions: I) -> PolymerPairCountMap {
     insertions
-        .map(|insert| ((insert.first, insert.last), insert.insert.to_string()))
+        .map(|insert| {
+            let mut new = HashMap::new();
+            new.insert((insert.first, insert.insert), 1);
+            new.insert(
+                (insert.insert, insert.last),
+                1 + new
+                    .get(&(insert.insert, insert.last))
+                    .copied()
+                    .unwrap_or_default(),
+            );
+
+            ((insert.first, insert.last), new)
+        })
         .collect()
 }
 
-fn next_tier(insertion_map: &PolymerInsertionMap) -> PolymerInsertionMap {
+fn next_tier(insertion_map: &PolymerPairCountMap) -> PolymerPairCountMap {
     insertion_map
         .iter()
-        .map(|(&k, v)| {
-            let mut buffer = String::new();
-            buffer.push(k.0);
-            buffer.push_str(v);
-            buffer.push(k.1);
-
-            let mut result = apply_tier(&buffer, insertion_map);
-            result.remove(0);
-            result.pop();
-            (k, result)
-        })
+        .map(|(&k, pair_counts)| (k, apply_tier(pair_counts, insertion_map)))
         .collect()
 }
 
-fn apply_tier(pattern: &str, insertion_map: &PolymerInsertionMap) -> String {
-    let chars = pattern.chars();
+fn apply_tier(pattern_counts: &PairCounts, insertion_map: &PolymerPairCountMap) -> PairCounts {
+    let mut result = PairCounts::new();
 
-    pattern
-        .chars()
-        .map(|c| c.to_string())
-        .interleave(
-            chars
-                .tuple_windows()
-                .map(|k| insertion_map.get(&k).cloned().unwrap_or_default()),
-        )
-        .fold(String::new(), |mut result, s| {
-            result.push_str(&s);
-            result
-        })
+    for (pair, &pair_count) in pattern_counts.iter() {
+        if let Some(new_pair_counts) = insertion_map.get(pair) {
+            for (other_pair, other_count) in new_pair_counts.iter() {
+                let count_ref = result.entry(*other_pair).or_insert(0);
+                *count_ref += other_count * pair_count;
+            }
+        } else {
+            let count_ref = result.entry(*pair).or_insert(0);
+            *count_ref += pair_count;
+        }
+    }
+
+    result
 }
 
-fn polymerized(
-    mut template: String,
-    mut insertion_map: PolymerInsertionMap,
+fn polymerized_counts(
+    template: &str,
+    mut insertion_map: PolymerPairCountMap,
     iterations: u32,
-) -> String {
+) -> PairCounts {
     let bit_len = 32 - iterations.leading_zeros();
 
-    if iterations == 0 {
-        return template;
-    }
+    let mut template = new_pair_counts(template);
 
-    for i in 0..(bit_len - 1) {
-        if (iterations & (1 << i)) != 0 {
-            template = apply_tier(&template, &insertion_map);
+    if iterations > 0 {
+        for i in 0..(bit_len - 1) {
+            if (iterations & (1 << i)) != 0 {
+                template = apply_tier(&template, &insertion_map);
+            }
+            insertion_map = next_tier(&insertion_map);
         }
-        insertion_map = next_tier(&insertion_map);
+        template = apply_tier(&template, &insertion_map);
     }
-    template = apply_tier(&template, &insertion_map);
 
     template
 }
 
-fn counts<I>(iter: I) -> HashMap<<I as Iterator>::Item, usize>
-where
-    I: Iterator,
-    <I as Iterator>::Item: Clone + Copy + Hash + std::cmp::Eq,
-{
-    iter.fold(HashMap::new(), |mut map, i| {
-        map.insert(i, 1 + map.get(&i).cloned().unwrap_or_default());
-        map
-    })
+fn element_counts(pair_counts: &PairCounts) -> HashMap<char, usize> {
+    let mut result = pair_counts
+        .iter()
+        .fold(HashMap::new(), |mut map, (pair, &count)| {
+            for c in [pair.0, pair.1] {
+                let count_ref = map.entry(c).or_insert(0);
+                *count_ref += count;
+            }
+            map
+        });
+
+    for (_, count) in result.iter_mut() {
+        *count = (*count / 2) + (*count % 2);
+    }
+
+    result
 }
 
 #[cfg(test)]
@@ -128,117 +150,133 @@ mod tests {
     fn test_polymerized_eg() {
         let template = "NNCB";
         let insertion_map = new_map(
-            vec![
-                Insertion {
-                    first: 'C',
-                    last: 'H',
-                    insert: 'B',
-                },
-                Insertion {
-                    first: 'H',
-                    last: 'H',
-                    insert: 'N',
-                },
-                Insertion {
-                    first: 'C',
-                    last: 'B',
-                    insert: 'H',
-                },
-                Insertion {
-                    first: 'N',
-                    last: 'H',
-                    insert: 'C',
-                },
-                Insertion {
-                    first: 'H',
-                    last: 'B',
-                    insert: 'C',
-                },
-                Insertion {
-                    first: 'H',
-                    last: 'C',
-                    insert: 'B',
-                },
-                Insertion {
-                    first: 'H',
-                    last: 'N',
-                    insert: 'C',
-                },
-                Insertion {
-                    first: 'N',
-                    last: 'N',
-                    insert: 'C',
-                },
-                Insertion {
-                    first: 'B',
-                    last: 'H',
-                    insert: 'H',
-                },
-                Insertion {
-                    first: 'N',
-                    last: 'C',
-                    insert: 'B',
-                },
-                Insertion {
-                    first: 'N',
-                    last: 'B',
-                    insert: 'B',
-                },
-                Insertion {
-                    first: 'B',
-                    last: 'N',
-                    insert: 'B',
-                },
-                Insertion {
-                    first: 'B',
-                    last: 'B',
-                    insert: 'N',
-                },
-                Insertion {
-                    first: 'B',
-                    last: 'C',
-                    insert: 'B',
-                },
-                Insertion {
-                    first: 'C',
-                    last: 'C',
-                    insert: 'N',
-                },
-                Insertion {
-                    first: 'C',
-                    last: 'N',
-                    insert: 'C',
-                },
-            ]
-            .into_iter(),
+            IntoIterator::into_iter([
+                ['C', 'H', 'B'],
+                ['H', 'H', 'N'],
+                ['C', 'B', 'H'],
+                ['N', 'H', 'C'],
+                ['H', 'B', 'C'],
+                ['H', 'C', 'B'],
+                ['H', 'N', 'C'],
+                ['N', 'N', 'C'],
+                ['B', 'H', 'H'],
+                ['N', 'C', 'B'],
+                ['N', 'B', 'B'],
+                ['B', 'N', 'B'],
+                ['B', 'B', 'N'],
+                ['B', 'C', 'B'],
+                ['C', 'C', 'N'],
+                ['C', 'N', 'C'],
+            ])
+            .map(|[c1, c2, c3]| Insertion {
+                first: c1,
+                last: c2,
+                insert: c3,
+            }),
         );
 
-        let calc_result = polymerized(template.to_string(), insertion_map.clone(), 0);
-        assert_eq!(calc_result, "NNCB".to_string(), "polymerize 0 times");
+        let calc_result = polymerized_counts(template, insertion_map.clone(), 0);
+        assert_eq!(calc_result, new_pair_counts("NNCB"), "polymerize 0 times");
 
-        let calc_result = polymerized(template.to_string(), insertion_map.clone(), 1);
-        assert_eq!(calc_result, "NCNBCHB".to_string(), "polymerize 1 times");
-
-        let calc_result = polymerized(template.to_string(), insertion_map.clone(), 2);
+        let calc_result = polymerized_counts(template, insertion_map.clone(), 1);
         assert_eq!(
             calc_result,
-            "NBCCNBBBCBHCB".to_string(),
+            new_pair_counts("NCNBCHB"),
+            "polymerize 1 times"
+        );
+
+        let calc_result = polymerized_counts(template, insertion_map.clone(), 2);
+        assert_eq!(
+            calc_result,
+            new_pair_counts("NBCCNBBBCBHCB"),
             "polymerize 2 times"
         );
 
-        let calc_result = polymerized(template.to_string(), insertion_map.clone(), 3);
+        let calc_result = polymerized_counts(template, insertion_map.clone(), 3);
         assert_eq!(
             calc_result,
-            "NBBBCNCCNBBNBNBBCHBHHBCHB".to_string(),
+            new_pair_counts("NBBBCNCCNBBNBNBBCHBHHBCHB"),
             "polymerize 3 times"
         );
 
-        let calc_result = polymerized(template.to_string(), insertion_map, 4);
+        let calc_result = polymerized_counts(template, insertion_map, 4);
         assert_eq!(
             calc_result,
-            "NBBNBNBBCCNBCNCCNBBNBBNBBBNBBNBBCBHCBHHNHCBBCBHCB".to_string(),
+            new_pair_counts("NBBNBNBBCCNBCNCCNBBNBBNBBBNBBNBBCBHCBHHNHCBBCBHCB"),
             "polymerize 4 times"
         );
+    }
+
+    #[test]
+    fn test_count_polymer_elements_10_eg() {
+        let template = "NNCB";
+        let insertion_map = new_map(
+            IntoIterator::into_iter([
+                ['C', 'H', 'B'],
+                ['H', 'H', 'N'],
+                ['C', 'B', 'H'],
+                ['N', 'H', 'C'],
+                ['H', 'B', 'C'],
+                ['H', 'C', 'B'],
+                ['H', 'N', 'C'],
+                ['N', 'N', 'C'],
+                ['B', 'H', 'H'],
+                ['N', 'C', 'B'],
+                ['N', 'B', 'B'],
+                ['B', 'N', 'B'],
+                ['B', 'B', 'N'],
+                ['B', 'C', 'B'],
+                ['C', 'C', 'N'],
+                ['C', 'N', 'C'],
+            ])
+            .map(|[c1, c2, c3]| Insertion {
+                first: c1,
+                last: c2,
+                insert: c3,
+            }),
+        );
+
+        let polymer = polymerized_counts(template, insertion_map, 10);
+        let elems = element_counts(&polymer);
+        let result =
+            elems.values().cloned().max().unwrap() - elems.values().cloned().min().unwrap();
+        assert_eq!(result, 1588)
+    }
+
+    #[test]
+    fn test_count_polymer_elements_40_eg() {
+        let template = "NNCB";
+        let insertion_map = new_map(
+            IntoIterator::into_iter([
+                ['C', 'H', 'B'],
+                ['H', 'H', 'N'],
+                ['C', 'B', 'H'],
+                ['N', 'H', 'C'],
+                ['H', 'B', 'C'],
+                ['H', 'C', 'B'],
+                ['H', 'N', 'C'],
+                ['N', 'N', 'C'],
+                ['B', 'H', 'H'],
+                ['N', 'C', 'B'],
+                ['N', 'B', 'B'],
+                ['B', 'N', 'B'],
+                ['B', 'B', 'N'],
+                ['B', 'C', 'B'],
+                ['C', 'C', 'N'],
+                ['C', 'N', 'C'],
+            ])
+            .map(|[c1, c2, c3]| Insertion {
+                first: c1,
+                last: c2,
+                insert: c3,
+            }),
+        );
+
+        let polymer = polymerized_counts(template, insertion_map, 40);
+        let elems = element_counts(&polymer);
+        let result =
+            elems.values().cloned().max().unwrap() - elems.values().cloned().min().unwrap();
+        assert_eq!(result, 2188189693529)
     }
 }
 
@@ -247,13 +285,11 @@ fn main() {
     let stdin = std::io::stdin();
     let (template, insertions) = read_input(stdin.lock()).unwrap();
 
-    let polymer = polymerized(template, new_map(insertions.into_iter()), 10);
-    //println!("polymer: {:?}", polymer);
-    let element_counts = counts(polymer.chars());
-    println!("polymer element counts: {:?}", element_counts);
+    let polymer = polymerized_counts(&template, new_map(insertions.into_iter()), 40);
+    let elems = element_counts(&polymer);
+    println!("polymer element counts: {:?}", elems);
     println!(
         "result = {:?}",
-        element_counts.values().cloned().max().unwrap()
-            - element_counts.values().cloned().min().unwrap()
+        elems.values().cloned().max().unwrap() - elems.values().cloned().min().unwrap()
     );
 }
