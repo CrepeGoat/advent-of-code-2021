@@ -1,38 +1,30 @@
-use aoc_lib::grid::{read_input, Grid};
-use core::cmp::min;
+use aoc_lib::grid::{adj4_coords, read_input, Grid};
+use core::cmp::Reverse;
+use std::collections::BinaryHeap;
 
 fn path_risk<const ROW: usize, const COL: usize>(grid: &Grid<u32, ROW, COL>) -> u32 {
     assert!(COL > 0 && ROW > 0, "zero-sized array");
 
-    let mut init_row = [u32::MAX; COL];
-    init_row[0] = 0;
+    let mut coord_queue = BinaryHeap::new();
+    coord_queue.push((Reverse(0), (0, 0)));
+    coord_queue.reserve(COL * ROW);
 
-    let last_row_risks = grid.iter().fold(init_row, |col_buffer, row| {
-        let mut result_buffer: [u32; COL] = unsafe { std::mem::uninitialized() };
+    let mut visited = [[false; COL]; ROW];
+    visited[0][0] = true;
 
-        let mut last_cell = u32::MAX;
-        for ((cell, last_best), row_item) in result_buffer
-            .iter_mut()
-            .zip(col_buffer.iter().copied())
-            .zip(row.iter().copied())
-        {
-            unsafe {
-                std::ptr::write(cell as *mut u32, min(last_best, last_cell) + row_item);
+    while let Some((Reverse(risk), coord)) = coord_queue.pop() {
+        if coord == (ROW - 1, COL - 1) {
+            return risk;
+        }
+        for new_coord in adj4_coords::<ROW, COL>(coord) {
+            if visited[new_coord.0][new_coord.1] {
+                continue;
             }
-            last_cell = *cell;
+            visited[new_coord.0][new_coord.1] = true;
+            coord_queue.push((Reverse(risk + grid[new_coord.0][new_coord.1]), new_coord));
         }
-
-        last_cell = u32::MAX - row[COL - 1];
-        for (cell, row_item) in result_buffer.iter_mut().zip(row.iter().copied()).rev() {
-            *cell = min(*cell, last_cell + row_item);
-            last_cell = *cell;
-        }
-
-        println!("{:?}", result_buffer);
-        result_buffer
-    });
-
-    last_row_risks[COL - 1] - grid[0][0]
+    }
+    unreachable!()
 }
 
 #[cfg(test)]
