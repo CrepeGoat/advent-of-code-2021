@@ -34,3 +34,17 @@ impl<T, const LEN: usize> From<ArrayWrapper<T, LEN>> for [T; LEN] {
         wrapper.0
     }
 }
+
+pub fn n_min<T: core::cmp::Ord, I: Iterator<Item = T>>(n: usize, mut iter: I) -> Vec<T> {
+    let mut buffer = std::collections::BinaryHeap::new();
+
+    for item in iter.by_ref().take(n) {
+        buffer.push(item);
+    }
+    for item in iter {
+        buffer.push(item);
+        buffer.pop();
+    }
+
+    buffer.into_sorted_vec()
+}
