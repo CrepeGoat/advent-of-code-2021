@@ -8,7 +8,7 @@ pub fn parsing_input<R: BufRead, T: FromStr>(reader: R) -> impl Iterator<Item = 
         .filter_map(|s| s.parse::<T>().ok())
 }
 
-pub struct ArrayWrapper<T, const LEN: usize>([T; LEN]);
+pub struct ArrayWrapper<T, const LEN: usize>(pub [T; LEN]);
 
 impl<T, const LEN: usize> std::iter::FromIterator<T> for ArrayWrapper<T, LEN> {
     fn from_iter<I: IntoIterator<Item = T>>(iterable: I) -> Self {
