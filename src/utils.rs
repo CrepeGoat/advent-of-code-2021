@@ -34,5 +34,3 @@ impl<T, const LEN: usize> From<ArrayWrapper<T, LEN>> for [T; LEN] {
         wrapper.0
     }
 }
-
-pub type Matrix<T, const ROW: usize, const COL: usize> = [[T; COL]; ROW];
