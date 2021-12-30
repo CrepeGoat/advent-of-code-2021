@@ -12,6 +12,8 @@ path = "src/lib.rs"
 [dependencies]
 itertools = "0.10.1"
 nom = "7.1.0"
+integer-sqrt = "0.1.5"
+num-traits = "0.2.14"
 
 [dev-dependencies]
 rstest = "0.12.0"
